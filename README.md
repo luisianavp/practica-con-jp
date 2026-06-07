@@ -1,1 +1,4 @@
-"# practica-con-jp" 
+"# practica-con-jp"
+
+primera clase
+
