@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Budget Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['Syne', 'sans-serif'],
+          mono: ['DM Mono', 'monospace'],
+        },
+        colors: {
+          zinc: { 950: '#0c0c0e' },
+        }
+      }
+    }
+  }
+</script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'DM Mono', monospace; background: #0c0c0e; }
+  .syne { font-family: 'Syne', sans-serif; }
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.6); cursor: pointer; }
+  select option { background: #18181b; color: #e4e4e7; }
+  .card { background: #141417; border: 1px solid #27272a; border-radius: 16px; }
+  .card-inner { background: #18181b; border: 1px solid #27272a; border-radius: 12px; }
+  .tx-row { border-bottom: 1px solid #1f1f23; }
+  .tx-row:last-child { border-bottom: none; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 500; letter-spacing: 0.04em; }
+  .fade-in { animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .balance-glow { text-shadow: 0 0 40px rgba(52, 211, 153, 0.25); }
+  .deficit-glow { text-shadow: 0 0 40px rgba(248, 113, 113, 0.25); }
+  input, select { background: #0c0c0e; border: 1px solid #27272a; color: #e4e4e7; border-radius: 8px; padding: 9px 12px; width: 100%; font-family: 'DM Mono', monospace; font-size: 13px; outline: none; transition: border-color 0.15s; }
+  input:focus, select:focus { border-color: #52525b; }
+  input::placeholder { color: #52525b; }
+  .btn-primary { background: #e4e4e7; color: #0c0c0e; border-radius: 8px; padding: 10px 18px; font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; cursor: pointer; border: none; width: 100%; transition: background 0.15s, transform 0.1s; }
+  .btn-primary:hover { background: #fff; }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-danger { background: transparent; color: #f87171; border: 1px solid #3f1919; border-radius: 6px; padding: 5px 10px; font-family: 'DM Mono', monospace; font-size: 11px; cursor: pointer; transition: background 0.15s; }
+  .btn-danger:hover { background: #3f1919; }
+  .tab { padding: 6px 16px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: background 0.15s, color 0.15s; color: #71717a; border: none; background: transparent; font-family: 'DM Mono', monospace; }
+  .tab.active { background: #27272a; color: #e4e4e7; }
+  .form-tab { padding: 7px 20px; border-radius: 8px; font-size: 12px; cursor: pointer; transition: all 0.15s; color: #71717a; border: none; background: transparent; font-family: 'DM Mono', monospace; }
+  .form-tab.active { background: #27272a; color: #e4e4e7; }
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 99px; }
+  .cat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+</style>
+</head>
+<body class="min-h-screen text-zinc-300">
+
+<!-- TOP BAR -->
+<div class="flex items-center justify-between px-4 py-3 border-b border-zinc-800/60" style="background:#0c0c0e;">
+  <div class="flex items-center gap-2">
+    <div class="w-6 h-6 rounded-md bg-zinc-200 flex items-center justify-center">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11L5.5 7.5L7.5 9.5L12 4" stroke="#0c0c0e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <span class="syne font-700 text-zinc-100 text-base tracking-tight">budget</span>
+    <span class="syne font-400 text-zinc-500 text-base tracking-tight">tracker</span>
+  </div>
+  <button onclick="resetAll()" class="text-zinc-600 hover:text-red-400 text-xs transition-colors flex items-center gap-1.5 border border-zinc-800 hover:border-red-900 rounded-md px-3 py-1.5">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1.5 6C1.5 3.515 3.515 1.5 6 1.5c1.38 0 2.61.6 3.46 1.54M10.5 6c0 2.485-2.015 4.5-4.5 4.5a4.49 4.49 0 01-3.46-1.54" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M9.5 1v2.04H7.46" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 11V8.96H4.54" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Reset all data
+  </button>
+</div>
+
+<div class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+
+  <!-- DASHBOARD CARDS -->
+  <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+    <div class="card p-4 col-span-2 md:col-span-1 flex flex-col justify-between" style="min-height:110px;">
+      <div class="text-xs text-zinc-500 uppercase tracking-widest mb-2">income</div>
+      <div id="d-income" class="syne text-2xl font-700 text-emerald-400">$0.00</div>
+    </div>
+    <div class="card p-4 col-span-2 md:col-span-1 flex flex-col justify-between" style="min-height:110px;">
+      <div class="text-xs text-zinc-500 uppercase tracking-widest mb-2">expenses</div>
+      <div id="d-expenses" class="syne text-2xl font-700 text-red-400">$0.00</div>
+    </div>
+    <div class="card p-4 col-span-2 flex flex-col justify-between" style="min-height:110px; border-color:#2d2d30;">
+      <div class="text-xs text-zinc-500 uppercase tracking-widest mb-2">balance</div>
+      <div id="d-balance" class="syne text-4xl font-800 text-zinc-100 balance-glow">$0.00</div>
+    </div>
+    <div class="card p-4 col-span-1 flex flex-col justify-between" style="min-height:90px;">
+      <div class="text-xs text-zinc-500 uppercase tracking-widest mb-2">savings rate</div>
+      <div id="d-savings" class="syne text-2xl font-700 text-zinc-300">—</div>
+    </div>
+    <div class="card p-4 col-span-1 flex flex-col justify-between" style="min-height:90px;">
+      <div class="text-xs text-zinc-500 uppercase tracking-widest mb-2">transactions</div>
+      <div id="d-count" class="syne text-2xl font-700 text-zinc-300">0</div>
+    </div>
+  </div>
+
+  <!-- MAIN GRID: Forms + Chart | Transactions -->
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+    <!-- LEFT: Forms + Chart -->
+    <div class="lg:col-span-2 space-y-4">
+
+      <!-- ADD TRANSACTION FORM -->
+      <div class="card p-4">
+        <div class="flex gap-1 mb-4 bg-zinc-900 p-1 rounded-lg">
+          <button class="form-tab active flex-1" id="tab-income" onclick="switchForm('income')">+ Income</button>
+          <button class="form-tab flex-1" id="tab-expense" onclick="switchForm('expense')">+ Expense</button>
+        </div>
+
+        <!-- Income Form -->
+        <div id="form-income" class="space-y-2.5">
+          <input type="number" id="inc-amount" placeholder="Amount ($)" min="0" step="0.01" />
+          <input type="text" id="inc-desc" placeholder="Description (e.g. Paycheck)" />
+          <input type="date" id="inc-date" />
+          <button class="btn-primary" onclick="addTransaction('income')">Add Income</button>
+        </div>
+
+        <!-- Expense Form -->
+        <div id="form-expense" class="space-y-2.5 hidden">
+          <input type="number" id="exp-amount" placeholder="Amount ($)" min="0" step="0.01" />
+          <select id="exp-cat">
+            <option value="">Select category…</option>
+            <option>Rent / Housing</option>
+            <option>Food</option>
+            <option>Groceries</option>
+            <option>Transportation</option>
+            <option>Utilities</option>
+            <option>Entertainment</option>
+            <option>Subscriptions</option>
+            <option>Shopping</option>
+            <option>Healthcare</option>
+            <option>Other</option>
+          </select>
+          <input type="text" id="exp-desc" placeholder="Description (optional)" />
+          <input type="date" id="exp-date" />
+          <button class="btn-primary" onclick="addTransaction('expense')">Add Expense</button>
+        </div>
+      </div>
+
+      <!-- PIE CHART -->
+      <div class="card p-4">
+        <div class="text-xs text-zinc-500 uppercase tracking-widest mb-3">expense breakdown</div>
+        <div style="position:relative;height:200px;">
+          <canvas id="pieChart" role="img" aria-label="Pie chart showing expense breakdown by category">No expense data yet.</canvas>
+        </div>
+        <div id="chart-legend" class="mt-3 space-y-1.5"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Transactions -->
+    <div class="lg:col-span-3">
+      <div class="card p-4 h-full flex flex-col">
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div class="text-xs text-zinc-500 uppercase tracking-widest">transactions</div>
+          <div class="flex gap-1 bg-zinc-900 p-1 rounded-lg">
+            <button class="tab active" id="filter-month" onclick="setFilter('month')">This month</button>
+            <button class="tab" id="filter-all" onclick="setFilter('all')">All time</button>
+          </div>
+        </div>
+        <div id="tx-list" class="flex-1 overflow-y-auto space-y-0" style="max-height:520px;min-height:200px;"></div>
+        <div id="tx-empty" class="hidden text-center py-16 text-zinc-600 text-sm">no transactions yet</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="hidden fixed bottom-6 right-6 text-xs py-2 px-4 rounded-lg z-50 font-mono" style="background:#27272a;color:#e4e4e7;"></div>
+
+<script>
+const STORAGE_KEY = 'bgt_v1';
+const CATS = ['Rent / Housing','Food','Groceries','Transportation','Utilities','Entertainment','Subscriptions','Shopping','Healthcare','Other'];
+const CAT_COLORS = ['#34d399','#60a5fa','#a78bfa','#f97316','#facc15','#f472b6','#38bdf8','#fb7185','#4ade80','#94a3b8'];
+
+let data = [];
+let filter = 'month';
+let activeForm = 'income';
+let pieChart = null;
+
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+function load() { try { data = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { data = []; } }
+
+function today() { return new Date().toISOString().slice(0,10); }
+
+function resetAll() {
+  if (!confirm('Delete ALL data and start fresh? This cannot be undone.')) return;
+  data = []; save(); render(); toast('All data cleared.');
+}
+
+function switchForm(type) {
+  activeForm = type;
+  document.getElementById('form-income').classList.toggle('hidden', type !== 'income');
+  document.getElementById('form-expense').classList.toggle('hidden', type !== 'expense');
+  document.getElementById('tab-income').classList.toggle('active', type === 'income');
+  document.getElementById('tab-expense').classList.toggle('active', type === 'expense');
+}
+
+function setFilter(f) {
+  filter = f;
+  document.getElementById('filter-month').classList.toggle('active', f === 'month');
+  document.getElementById('filter-all').classList.toggle('active', f === 'all');
+  render();
+}
+
+function addTransaction(type) {
+  const amt = parseFloat(type === 'income' ? document.getElementById('inc-amount').value : document.getElementById('exp-amount').value);
+  if (!amt || amt <= 0) { toast('Enter a valid amount.'); return; }
+
+  if (type === 'income') {
+    const desc = document.getElementById('inc-desc').value.trim() || 'Income';
+    const date = document.getElementById('inc-date').value || today();
+    data.push({ id: Date.now(), type: 'income', amount: amt, desc, date });
+    document.getElementById('inc-amount').value = '';
+    document.getElementById('inc-desc').value = '';
+    document.getElementById('inc-date').value = '';
+    toast('Income added ✓');
+  } else {
+    const cat = document.getElementById('exp-cat').value;
+    if (!cat) { toast('Select a category.'); return; }
+    const desc = document.getElementById('exp-desc').value.trim();
+    const date = document.getElementById('exp-date').value || today();
+    data.push({ id: Date.now(), type: 'expense', amount: amt, cat, desc, date });
+    document.getElementById('exp-amount').value = '';
+    document.getElementById('exp-desc').value = '';
+    document.getElementById('exp-date').value = '';
+    document.getElementById('exp-cat').value = '';
+    toast('Expense added ✓');
+  }
+  save(); render();
+}
+
+function deleteTransaction(id) {
+  data = data.filter(t => t.id !== id);
+  save(); render(); toast('Deleted.');
+}
+
+function filtered() {
+  if (filter === 'all') return data;
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  return data.filter(t => {
+    const d = new Date(t.date);
+    return d.getFullYear() === y && d.getMonth() === m;
+  });
+}
+
+function fmt(n) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+function render() {
+  const tx = filtered().slice().sort((a,b) => b.date.localeCompare(a.date) || b.id - a.id);
+  const income = tx.filter(t => t.type === 'income').reduce((s,t) => s + t.amount, 0);
+  const expenses = tx.filter(t => t.type === 'expense').reduce((s,t) => s + t.amount, 0);
+  const balance = income - expenses;
+  const savingsRate = income > 0 ? Math.round(((income - expenses) / income) * 100) : null;
+
+  document.getElementById('d-income').textContent = fmt(income);
+  document.getElementById('d-expenses').textContent = fmt(expenses);
+  const balEl = document.getElementById('d-balance');
+  balEl.textContent = fmt(balance);
+  balEl.className = 'syne text-4xl font-800 ' + (balance >= 0 ? 'text-emerald-400 balance-glow' : 'text-red-400 deficit-glow');
+  document.getElementById('d-savings').textContent = savingsRate !== null ? savingsRate + '%' : '—';
+  document.getElementById('d-savings').className = 'syne text-2xl font-700 ' + (savingsRate !== null ? (savingsRate >= 20 ? 'text-emerald-400' : savingsRate >= 0 ? 'text-yellow-400' : 'text-red-400') : 'text-zinc-500');
+  document.getElementById('d-count').textContent = tx.length;
+
+  // Transaction list
+  const list = document.getElementById('tx-list');
+  const empty = document.getElementById('tx-empty');
+  if (tx.length === 0) { list.innerHTML = ''; empty.classList.remove('hidden'); }
+  else {
+    empty.classList.add('hidden');
+    list.innerHTML = tx.map(t => {
+      const isIncome = t.type === 'income';
+      const catColor = isIncome ? '#34d399' : CAT_COLORS[CATS.indexOf(t.cat)] || '#94a3b8';
+      const label = isIncome ? 'Income' : t.cat;
+      return `<div class="tx-row flex items-center gap-3 py-3 px-1 fade-in">
+        <div class="flex-shrink-0">
+          <span class="cat-dot" style="background:${catColor};"></span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm text-zinc-200 truncate">${escHtml(t.desc || label)}</div>
+          <div class="text-xs text-zinc-600 mt-0.5 flex gap-2">
+            <span>${label}</span>
+            <span>·</span>
+            <span>${fmtDate(t.date)}</span>
+          </div>
+        </div>
+        <div class="text-sm font-500 flex-shrink-0 ${isIncome ? 'text-emerald-400' : 'text-red-400'}">
+          ${isIncome ? '+' : '-'}${fmt(t.amount)}
+        </div>
+        <button class="btn-danger flex-shrink-0" onclick="deleteTransaction(${t.id})">del</button>
+      </div>`;
+    }).join('');
+  }
+
+  // Pie chart
+  renderChart(tx);
+}
+
+function fmtDate(d) {
+  const dt = new Date(d + 'T00:00:00');
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderChart(tx) {
+  const expenses = tx.filter(t => t.type === 'expense');
+  const totals = {};
+  expenses.forEach(t => { totals[t.cat] = (totals[t.cat] || 0) + t.amount; });
+  const labels = Object.keys(totals);
+  const values = Object.values(totals);
+  const colors = labels.map(l => CAT_COLORS[CATS.indexOf(l)] || '#94a3b8');
+
+  if (pieChart) { pieChart.destroy(); pieChart = null; }
+
+  const canvas = document.getElementById('pieChart');
+  if (labels.length === 0) {
+    canvas.parentElement.style.height = '60px';
+    document.getElementById('chart-legend').innerHTML = '<div class="text-xs text-zinc-600 text-center">no expense data</div>';
+    return;
+  }
+  canvas.parentElement.style.height = '200px';
+
+  pieChart = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, hoverOffset: 4 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${fmt(ctx.raw)} (${Math.round(ctx.raw / values.reduce((a,b)=>a+b,0)*100)}%)`
+          },
+          bodyFont: { family: 'DM Mono', size: 12 },
+          backgroundColor: '#1f1f23',
+          borderColor: '#27272a',
+          borderWidth: 1,
+          padding: 10,
+        }
+      }
+    }
+  });
+
+  const total = values.reduce((a,b)=>a+b,0);
+  document.getElementById('chart-legend').innerHTML = labels.map((l,i) => `
+    <div class="flex items-center justify-between text-xs">
+      <span class="flex items-center gap-2 text-zinc-400">
+        <span class="cat-dot" style="background:${colors[i]};"></span>${l}
+      </span>
+      <span class="text-zinc-500">${fmt(values[i])} <span class="text-zinc-700">·</span> ${Math.round(values[i]/total*100)}%</span>
+    </div>
+  `).join('');
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 2200);
+}
+
+// Init date fields
+document.getElementById('inc-date').value = today();
+document.getElementById('exp-date').value = today();
+
+load();
+render();
+</script>
+</body>
+</html>
